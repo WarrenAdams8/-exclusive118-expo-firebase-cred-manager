@@ -4,6 +4,14 @@
   "description": "Expo module for Firebase Auth and Android Credential Manager flows",
   "main": "index.ts",
   "types": "index.ts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/WarrenAdams8/-exclusive118-expo-firebase-cred-manager.git"
+  },
+  "bugs": {
+    "url": "https://github.com/WarrenAdams8/-exclusive118-expo-firebase-cred-manager/issues"
+  },
+  "homepage": "https://github.com/WarrenAdams8/-exclusive118-expo-firebase-cred-manager#readme",
   "license": "MIT",
   "private": false,
   "publishConfig": {
