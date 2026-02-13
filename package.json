@@ -1,0 +1,39 @@
+{
+  "name": "@exclusive118/expo-firebase-cred-manager",
+  "version": "0.1.0",
+  "description": "Expo module for Firebase Auth and Android Credential Manager flows",
+  "main": "index.ts",
+  "types": "index.ts",
+  "license": "MIT",
+  "private": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "index.ts",
+    "src/ExpoFirebaseCredManager.types.ts",
+    "src/ExpoFirebaseCredManagerModule.ts",
+    "src/ExpoFirebaseCredManagerModule.web.ts",
+    "android/build.gradle",
+    "android/src",
+    "ios/ExpoFirebaseCredManager.podspec",
+    "ios/ExpoFirebaseCredManagerModule.swift",
+    "expo-module.config.json",
+    "app.plugin.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "pack:check": "npm pack --dry-run",
+    "publish:public": "npm publish --access public"
+  },
+  "dependencies": {
+    "expo-modules-core": "^3.0.29"
+  },
+  "peerDependencies": {
+    "expo": ">=54.0.0",
+    "react": ">=19.0.0",
+    "react-native": ">=0.81.0"
+  }
+}
