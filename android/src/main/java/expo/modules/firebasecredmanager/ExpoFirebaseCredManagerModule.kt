@@ -90,8 +90,23 @@ class CurrentSessionInputRecord : Record {
 }
 
 class ExpoFirebaseCredManagerModule : Module() {
+  companion object {
+    private const val AUTH_STATE_CHANGED_EVENT = "onAuthStateChanged"
+  }
+
+  private var authStateListener: FirebaseAuth.AuthStateListener? = null
+
   override fun definition() = ModuleDefinition {
     Name("ExpoFirebaseCredManager")
+    Events(AUTH_STATE_CHANGED_EVENT)
+
+    OnStartObserving {
+      startAuthStateObservation()
+    }
+
+    OnStopObserving {
+      stopAuthStateObservation()
+    }
 
     Function("isAvailable") {
       try {
@@ -232,6 +247,46 @@ class ExpoFirebaseCredManagerModule : Module() {
   private fun credentialManager(activity: Activity): CredentialManager = CredentialManager.create(activity)
 
   private fun firebaseAuth(): FirebaseAuth = FirebaseAuth.getInstance()
+
+  private fun startAuthStateObservation() {
+    if (authStateListener != null) {
+      return
+    }
+
+    val listener = FirebaseAuth.AuthStateListener { auth ->
+      sendEvent(AUTH_STATE_CHANGED_EVENT, buildAuthStateChangedEventPayload(auth.currentUser))
+    }
+    firebaseAuth().addAuthStateListener(listener)
+    authStateListener = listener
+  }
+
+  private fun stopAuthStateObservation() {
+    val listener = authStateListener ?: return
+    firebaseAuth().removeAuthStateListener(listener)
+    authStateListener = null
+  }
+
+  private fun buildAuthStateChangedEventPayload(user: FirebaseUser?): Map<String, Any?> {
+    if (user == null) {
+      return mapOf("session" to null)
+    }
+
+    return mapOf(
+      "session" to mapOf(
+        "provider" to detectProvider(user),
+        "user" to mapOf<String, Any?>(
+          "uid" to user.uid,
+          "email" to user.email,
+          "displayName" to user.displayName,
+          "photoURL" to user.photoUrl?.toString(),
+          "emailVerified" to user.isEmailVerified,
+          "isAnonymous" to user.isAnonymous,
+          "creationTimestamp" to user.metadata?.creationTimestamp,
+          "lastSignInTimestamp" to user.metadata?.lastSignInTimestamp
+        )
+      )
+    )
+  }
 
   private fun validateEmailPasswordInput(email: String, password: String) {
     if (email.isBlank()) {

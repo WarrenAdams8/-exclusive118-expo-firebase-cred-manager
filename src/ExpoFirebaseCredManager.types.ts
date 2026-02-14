@@ -16,6 +16,21 @@ export type AuthResult = {
   };
 };
 
+export type AuthStateSession = {
+  provider: AuthProvider;
+  user: AuthResult['user'];
+};
+
+export type AuthStateChangedEvent = {
+  session: AuthStateSession | null;
+};
+
+export type AuthStateChangedListener = (event: AuthStateChangedEvent) => void;
+
+export type AuthStateSubscription = {
+  remove(): void;
+};
+
 export type EmailPasswordInput = {
   email: string;
   password: string;

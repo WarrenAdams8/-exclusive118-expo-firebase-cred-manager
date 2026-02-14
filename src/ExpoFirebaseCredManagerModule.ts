@@ -1,7 +1,9 @@
-import { CodedError, Platform, requireOptionalNativeModule } from 'expo-modules-core';
+import { CodedError, EventEmitter, Platform, requireOptionalNativeModule } from 'expo-modules-core';
 
 import type {
   AuthResult,
+  AuthStateChangedListener,
+  AuthStateSubscription,
   CurrentSessionInput,
   DeleteCurrentUserInput,
   EmailPasswordInput,
@@ -15,6 +17,7 @@ import { ExpoFirebaseCredManagerErrorCodes } from './ExpoFirebaseCredManager.typ
 
 const NativeModule =
   requireOptionalNativeModule<NativeExpoFirebaseCredManagerModule>('ExpoFirebaseCredManager');
+const AUTH_STATE_CHANGED_EVENT = 'onAuthStateChanged';
 
 function ensureAvailable(): NativeExpoFirebaseCredManagerModule {
   if (Platform.OS !== 'android') {
@@ -148,4 +151,10 @@ export async function deleteCurrentUser(options?: DeleteCurrentUserInput): Promi
 export async function clearCredentialState(): Promise<void> {
   const native = ensureAvailable();
   await native.clearCredentialState();
+}
+
+export function addAuthStateListener(listener: AuthStateChangedListener): AuthStateSubscription {
+  const native = ensureAvailable();
+  const emitter = new EventEmitter(native as any);
+  return emitter.addListener(AUTH_STATE_CHANGED_EVENT, listener);
 }

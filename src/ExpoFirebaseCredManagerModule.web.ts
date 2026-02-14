@@ -2,6 +2,8 @@ import { CodedError } from 'expo-modules-core';
 
 import type {
   AuthResult,
+  AuthStateChangedListener,
+  AuthStateSubscription,
   CurrentSessionInput,
   DeleteCurrentUserInput,
   EmailPasswordInput,
@@ -60,5 +62,9 @@ export async function deleteCurrentUser(_input?: DeleteCurrentUserInput): Promis
 }
 
 export async function clearCredentialState(): Promise<void> {
+  unsupported();
+}
+
+export function addAuthStateListener(_listener: AuthStateChangedListener): AuthStateSubscription {
   unsupported();
 }

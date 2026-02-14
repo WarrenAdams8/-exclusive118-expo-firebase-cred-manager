@@ -8,6 +8,8 @@ const deleteCurrentUserMock = jest.fn();
 const clearCredentialStateMock = jest.fn();
 const isAvailableMock = jest.fn();
 const getCurrentSessionMock = jest.fn();
+const eventEmitterAddListenerMock = jest.fn();
+const eventEmitterCtorMock = jest.fn();
 
 let platformOS: 'android' | 'ios' | 'web' = 'android';
 
@@ -25,6 +27,15 @@ jest.mock('expo-modules-core', () => ({
       return platformOS;
     },
   },
+  EventEmitter: class EventEmitter {
+    constructor(nativeModule: unknown) {
+      eventEmitterCtorMock(nativeModule);
+    }
+
+    addListener(eventName: string, listener: (...args: any[]) => void) {
+      return eventEmitterAddListenerMock(eventName, listener);
+    }
+  },
   requireOptionalNativeModule: () => ({
     isAvailable: isAvailableMock,
     getCurrentSession: getCurrentSessionMock,
@@ -40,6 +51,7 @@ jest.mock('expo-modules-core', () => ({
 }));
 
 import {
+  addAuthStateListener,
   deleteCurrentUser,
   getCurrentSession,
   isAvailable,
@@ -64,6 +76,8 @@ beforeEach(() => {
   signOutMock.mockReset();
   deleteCurrentUserMock.mockReset();
   clearCredentialStateMock.mockReset();
+  eventEmitterAddListenerMock.mockReset();
+  eventEmitterCtorMock.mockReset();
 });
 
 describe('ExpoFirebaseCredManagerModule', () => {
@@ -189,5 +203,31 @@ describe('ExpoFirebaseCredManagerModule', () => {
       code: ExpoFirebaseCredManagerErrorCodes.E_UNSUPPORTED_PLATFORM,
     });
     expect(deleteCurrentUserMock).not.toHaveBeenCalled();
+  });
+
+  it('registers auth state listener with native event emitter', () => {
+    const listener = jest.fn();
+    const subscription = { remove: jest.fn() };
+    eventEmitterAddListenerMock.mockReturnValue(subscription);
+
+    const result = addAuthStateListener(listener);
+
+    expect(eventEmitterCtorMock).toHaveBeenCalledTimes(1);
+    expect(eventEmitterAddListenerMock).toHaveBeenCalledWith('onAuthStateChanged', listener);
+    expect(result).toBe(subscription);
+  });
+
+  it('throws unsupported platform on iOS for addAuthStateListener', () => {
+    platformOS = 'ios';
+
+    try {
+      addAuthStateListener(jest.fn());
+      fail('Expected addAuthStateListener to throw');
+    } catch (error) {
+      expect(error).toMatchObject({
+        code: ExpoFirebaseCredManagerErrorCodes.E_UNSUPPORTED_PLATFORM,
+      });
+    }
+    expect(eventEmitterAddListenerMock).not.toHaveBeenCalled();
   });
 });

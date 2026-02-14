@@ -1,4 +1,5 @@
 export {
+  addAuthStateListener,
   clearCredentialState,
   deleteCurrentUser,
   getCurrentSession,

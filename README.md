@@ -48,6 +48,7 @@ import {
   signInWithGoogleBottomSheet,
   signOut,
   deleteCurrentUser,
+  addAuthStateListener,
   clearCredentialState,
   getCurrentSession,
   isAvailable,
@@ -56,20 +57,21 @@ import {
 
 ## API return values
 
-All exported methods are async and return a `Promise`.
+Most exported methods are async and return a `Promise`. `addAuthStateListener` returns a subscription object synchronously.
 
-| Function | Resolves with | Errors |
-| --- | --- | --- |
-| `isAvailable()` | `Promise<boolean>` | none (returns `false` when unavailable) |
-| `getCurrentSession(input?)` | `Promise<AuthResult \| null>` | rejects with `ExpoFirebaseCredManagerError` (see Error codes) |
-| `signInWithEmailPassword(input)` | `Promise<AuthResult>` | rejects with `ExpoFirebaseCredManagerError` (see Error codes) |
-| `signUpWithEmailPassword(input)` | `Promise<AuthResult>` | rejects with `ExpoFirebaseCredManagerError` (see Error codes) |
-| `savePasswordCredential(input)` | `Promise<{ saved: true }>` | rejects with `ExpoFirebaseCredManagerError` (see Error codes) |
-| `signInWithGoogleButton(input?)` | `Promise<AuthResult>` | rejects with `ExpoFirebaseCredManagerError` (see Error codes) |
-| `signInWithGoogleBottomSheet(input?)` | `Promise<AuthResult>` | rejects with `ExpoFirebaseCredManagerError` (see Error codes) |
-| `signOut(options?)` | `Promise<void>` | rejects with `ExpoFirebaseCredManagerError` (see Error codes) |
-| `deleteCurrentUser(options?)` | `Promise<void>` | rejects with `ExpoFirebaseCredManagerError` (see Error codes) |
-| `clearCredentialState()` | `Promise<void>` | rejects with `ExpoFirebaseCredManagerError` (see Error codes) |
+| Function | Resolves with |
+| --- | --- |
+| `isAvailable()` | `Promise<boolean>` |
+| `getCurrentSession(input?)` | `Promise<AuthResult \| null>` |
+| `signInWithEmailPassword(input)` | `Promise<AuthResult>` |
+| `signUpWithEmailPassword(input)` | `Promise<AuthResult>` |
+| `savePasswordCredential(input)` | `Promise<{ saved: true }>` |
+| `signInWithGoogleButton(input?)` | `Promise<AuthResult>` |
+| `signInWithGoogleBottomSheet(input?)` | `Promise<AuthResult>` |
+| `signOut(options?)` | `Promise<void>` |
+| `deleteCurrentUser(options?)` | `Promise<void>` |
+| `addAuthStateListener(listener)` | `AuthStateSubscription` |
+| `clearCredentialState()` | `Promise<void>` |
 
 `deleteCurrentUser(options?)` behavior:
 
@@ -78,6 +80,13 @@ All exported methods are async and return a `Promise`.
 - `webClientId`/`nonce` are optional and used for Google reauthentication when recent login is required
 
 Note: `clearCredentialState` clears provider session state in Credential Manager. It does not guarantee removal of saved passwords/passkeys.
+
+`addAuthStateListener(listener)` behavior:
+
+- Emits `onAuthStateChanged` whenever Firebase auth state changes.
+- Listener receives `{ session: AuthStateSession | null }`.
+- `session` includes `provider` and `user` fields; if signed out, `session` is `null`.
+- Use `subscription.remove()` to stop listening.
 
 ## Error codes
 
