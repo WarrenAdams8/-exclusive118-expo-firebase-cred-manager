@@ -88,6 +88,29 @@ Note: `clearCredentialState` clears provider session state in Credential Manager
 - `session` includes `provider` and `user` fields; if signed out, `session` is `null`.
 - Use `subscription.remove()` to stop listening.
 
+Example:
+
+```ts
+import { useEffect } from 'react';
+import { addAuthStateListener } from '@exclusive118/expo-firebase-cred-manager';
+
+useEffect(() => {
+  const subscription = addAuthStateListener(({ session }) => {
+    if (!session) {
+      console.log('User signed out');
+      return;
+    }
+
+    console.log('Auth provider:', session.provider);
+    console.log('User uid:', session.user.uid);
+  });
+
+  return () => {
+    subscription.remove();
+  };
+}, []);
+```
+
 ## Error codes
 
 Rejections are `ExpoFirebaseCredManagerError` objects (an `Error` plus a `code` field):
