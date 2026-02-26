@@ -7,10 +7,14 @@ import type {
   CurrentSessionInput,
   DeleteCurrentUserInput,
   EmailPasswordInput,
+  GetIdTokenInput,
+  GetIdTokenResult,
   GoogleBottomSheetInput,
   GoogleButtonInput,
   SavePasswordCredentialInput,
   SignOutInput,
+  SpacetimeDBTokenInput,
+  SpacetimeDBTokenResult,
 } from './ExpoFirebaseCredManager.types';
 import { ExpoFirebaseCredManagerErrorCodes } from './ExpoFirebaseCredManager.types';
 
@@ -26,6 +30,10 @@ export async function isAvailable(): Promise<boolean> {
 }
 
 export async function getCurrentSession(_input?: CurrentSessionInput): Promise<AuthResult | null> {
+  unsupported();
+}
+
+export async function getIdToken(_input?: GetIdTokenInput): Promise<GetIdTokenResult | null> {
   unsupported();
 }
 
@@ -66,5 +74,11 @@ export async function clearCredentialState(): Promise<void> {
 }
 
 export function addAuthStateListener(_listener: AuthStateChangedListener): AuthStateSubscription {
+  unsupported();
+}
+
+export async function getSpacetimeDBToken(
+  _input: SpacetimeDBTokenInput
+): Promise<SpacetimeDBTokenResult> {
   unsupported();
 }

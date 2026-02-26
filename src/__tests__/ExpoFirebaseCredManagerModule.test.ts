@@ -8,6 +8,7 @@ const deleteCurrentUserMock = jest.fn();
 const clearCredentialStateMock = jest.fn();
 const isAvailableMock = jest.fn();
 const getCurrentSessionMock = jest.fn();
+const getIdTokenMock = jest.fn();
 const eventEmitterAddListenerMock = jest.fn();
 const eventEmitterCtorMock = jest.fn();
 
@@ -39,6 +40,7 @@ jest.mock('expo-modules-core', () => ({
   requireOptionalNativeModule: () => ({
     isAvailable: isAvailableMock,
     getCurrentSession: getCurrentSessionMock,
+    getIdToken: getIdTokenMock,
     signInWithEmailPassword: signInWithEmailPasswordMock,
     signUpWithEmailPassword: signUpWithEmailPasswordMock,
     savePasswordCredential: savePasswordCredentialMock,
@@ -54,6 +56,8 @@ import {
   addAuthStateListener,
   deleteCurrentUser,
   getCurrentSession,
+  getIdToken,
+  getSpacetimeDBToken,
   isAvailable,
   savePasswordCredential,
   signInWithEmailPassword,
@@ -68,6 +72,7 @@ beforeEach(() => {
   platformOS = 'android';
   isAvailableMock.mockReset();
   getCurrentSessionMock.mockReset();
+  getIdTokenMock.mockReset();
   signInWithEmailPasswordMock.mockReset();
   signUpWithEmailPasswordMock.mockReset();
   savePasswordCredentialMock.mockReset();
@@ -212,7 +217,6 @@ describe('ExpoFirebaseCredManagerModule', () => {
 
     const result = addAuthStateListener(listener);
 
-    expect(eventEmitterCtorMock).toHaveBeenCalledTimes(1);
     expect(eventEmitterAddListenerMock).toHaveBeenCalledWith('onAuthStateChanged', listener);
     expect(result).toBe(subscription);
   });
@@ -229,5 +233,131 @@ describe('ExpoFirebaseCredManagerModule', () => {
       });
     }
     expect(eventEmitterAddListenerMock).not.toHaveBeenCalled();
+  });
+
+  it('reuses the same EventEmitter instance across addAuthStateListener calls', () => {
+    const listener1 = jest.fn();
+    const listener2 = jest.fn();
+    eventEmitterAddListenerMock.mockReturnValue({ remove: jest.fn() });
+
+    addAuthStateListener(listener1);
+    const ctorCountAfterFirst = eventEmitterCtorMock.mock.calls.length;
+
+    addAuthStateListener(listener2);
+    const ctorCountAfterSecond = eventEmitterCtorMock.mock.calls.length;
+
+    expect(ctorCountAfterSecond).toBe(ctorCountAfterFirst);
+    expect(eventEmitterAddListenerMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('passes getIdToken defaults', async () => {
+    getIdTokenMock.mockResolvedValue({ idToken: 'tok', expiresAt: 1700000000000 });
+
+    await getIdToken();
+
+    expect(getIdTokenMock).toHaveBeenCalledWith({ forceRefresh: false });
+  });
+
+  it('passes getIdToken with forceRefresh true', async () => {
+    getIdTokenMock.mockResolvedValue({ idToken: 'tok', expiresAt: 1700000000000 });
+
+    await getIdToken({ forceRefresh: true });
+
+    expect(getIdTokenMock).toHaveBeenCalledWith({ forceRefresh: true });
+  });
+
+  it('returns null from getIdToken when no user is signed in', async () => {
+    getIdTokenMock.mockResolvedValue(null);
+
+    const result = await getIdToken();
+
+    expect(result).toBeNull();
+  });
+
+  it('throws on iOS for getIdToken', async () => {
+    platformOS = 'ios';
+
+    await expect(getIdToken()).rejects.toMatchObject({
+      code: ExpoFirebaseCredManagerErrorCodes.E_UNSUPPORTED_PLATFORM,
+    });
+  });
+
+  it('getSpacetimeDBToken throws when no session exists', async () => {
+    getCurrentSessionMock.mockResolvedValue(null);
+
+    await expect(
+      getSpacetimeDBToken({ spacetimeDbUrl: 'http://localhost:3000' })
+    ).rejects.toMatchObject({
+      code: ExpoFirebaseCredManagerErrorCodes.E_ID_TOKEN_UNAVAILABLE,
+    });
+  });
+
+  it('getSpacetimeDBToken exchanges token with SpacetimeDB', async () => {
+    getCurrentSessionMock.mockResolvedValue({
+      idToken: 'firebase-jwt',
+      idTokenExpiresAt: 1700000000000,
+      provider: 'google',
+      isNewUser: false,
+      user: { uid: 'u1', email: null, displayName: null, photoURL: null, emailVerified: false, isAnonymous: false, creationTimestamp: null, lastSignInTimestamp: null },
+    });
+
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ token: 'stdb-short-lived-token' }),
+    });
+    global.fetch = fetchMock as any;
+
+    const result = await getSpacetimeDBToken({ spacetimeDbUrl: 'http://localhost:3000' });
+
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost:3000/v1/identity/websocket-token', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer firebase-jwt' },
+    });
+    expect(result).toEqual({ token: 'stdb-short-lived-token' });
+  });
+
+  it('getSpacetimeDBToken strips trailing slashes from URL', async () => {
+    getCurrentSessionMock.mockResolvedValue({
+      idToken: 'firebase-jwt',
+      idTokenExpiresAt: null,
+      provider: 'password',
+      isNewUser: false,
+      user: { uid: 'u1', email: null, displayName: null, photoURL: null, emailVerified: false, isAnonymous: false, creationTimestamp: null, lastSignInTimestamp: null },
+    });
+
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ token: 'tok' }),
+    });
+    global.fetch = fetchMock as any;
+
+    await getSpacetimeDBToken({ spacetimeDbUrl: 'http://localhost:3000///' });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:3000/v1/identity/websocket-token',
+      expect.any(Object)
+    );
+  });
+
+  it('getSpacetimeDBToken throws on non-ok response', async () => {
+    getCurrentSessionMock.mockResolvedValue({
+      idToken: 'firebase-jwt',
+      idTokenExpiresAt: null,
+      provider: 'google',
+      isNewUser: false,
+      user: { uid: 'u1', email: null, displayName: null, photoURL: null, emailVerified: false, isAnonymous: false, creationTimestamp: null, lastSignInTimestamp: null },
+    });
+
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      statusText: 'Unauthorized',
+    }) as any;
+
+    await expect(
+      getSpacetimeDBToken({ spacetimeDbUrl: 'http://localhost:3000' })
+    ).rejects.toMatchObject({
+      code: ExpoFirebaseCredManagerErrorCodes.E_SPACETIMEDB_TOKEN_EXCHANGE,
+    });
   });
 });

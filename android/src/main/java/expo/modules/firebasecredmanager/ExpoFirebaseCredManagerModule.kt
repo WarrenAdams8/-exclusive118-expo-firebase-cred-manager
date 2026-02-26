@@ -44,6 +44,10 @@ import expo.modules.kotlin.modules.ModuleDefinition
 import expo.modules.kotlin.records.Field
 import expo.modules.kotlin.records.Record
 import java.util.Locale
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
 class EmailPasswordInputRecord : Record {
@@ -89,12 +93,17 @@ class CurrentSessionInputRecord : Record {
   @Field val forceRefreshIdToken: Boolean = false
 }
 
+class GetIdTokenInputRecord : Record {
+  @Field val forceRefresh: Boolean = false
+}
+
 class ExpoFirebaseCredManagerModule : Module() {
   companion object {
     private const val AUTH_STATE_CHANGED_EVENT = "onAuthStateChanged"
   }
 
   private var authStateListener: FirebaseAuth.AuthStateListener? = null
+  private val moduleScope = CoroutineScope(Dispatchers.Main.immediate + SupervisorJob())
 
   override fun definition() = ModuleDefinition {
     Name("ExpoFirebaseCredManager")
@@ -126,6 +135,29 @@ class ExpoFirebaseCredManagerModule : Module() {
         provider = provider,
         isNewUser = null,
         forceRefreshIdToken = input.forceRefreshIdToken
+      )
+    }
+
+    AsyncFunction("getIdToken") Coroutine { input: GetIdTokenInputRecord ->
+      val user = firebaseAuth().currentUser ?: return@Coroutine null
+      val tokenResult = try {
+        user.getIdToken(input.forceRefresh).await()
+      } catch (e: Exception) {
+        throw ExpoFirebaseCredManagerException(
+          "E_ID_TOKEN_UNAVAILABLE",
+          e.message ?: "Failed to retrieve Firebase ID token.",
+          e
+        )
+      }
+      val token = tokenResult.token
+        ?: throw ExpoFirebaseCredManagerException(
+          "E_ID_TOKEN_UNAVAILABLE",
+          "Firebase ID token is unavailable for the current user."
+        )
+      val expiresAt = (tokenResult.claims["exp"] as? Number)?.toLong()?.times(1000)
+      mapOf(
+        "idToken" to token,
+        "expiresAt" to expiresAt
       )
     }
 
@@ -254,7 +286,14 @@ class ExpoFirebaseCredManagerModule : Module() {
     }
 
     val listener = FirebaseAuth.AuthStateListener { auth ->
-      sendEvent(AUTH_STATE_CHANGED_EVENT, buildAuthStateChangedEventPayload(auth.currentUser))
+      val user = auth.currentUser
+      if (user == null) {
+        sendEvent(AUTH_STATE_CHANGED_EVENT, mapOf("session" to null))
+        return@AuthStateListener
+      }
+      moduleScope.launch {
+        sendEvent(AUTH_STATE_CHANGED_EVENT, buildAuthStateChangedEventPayload(user))
+      }
     }
     firebaseAuth().addAuthStateListener(listener)
     authStateListener = listener
@@ -266,24 +305,19 @@ class ExpoFirebaseCredManagerModule : Module() {
     authStateListener = null
   }
 
-  private fun buildAuthStateChangedEventPayload(user: FirebaseUser?): Map<String, Any?> {
-    if (user == null) {
-      return mapOf("session" to null)
+  private suspend fun buildAuthStateChangedEventPayload(user: FirebaseUser): Map<String, Any?> {
+    val tokenResult = try {
+      user.getIdToken(false).await()
+    } catch (_: Exception) {
+      null
     }
 
     return mapOf(
       "session" to mapOf(
         "provider" to detectProvider(user),
-        "user" to mapOf<String, Any?>(
-          "uid" to user.uid,
-          "email" to user.email,
-          "displayName" to user.displayName,
-          "photoURL" to user.photoUrl?.toString(),
-          "emailVerified" to user.isEmailVerified,
-          "isAnonymous" to user.isAnonymous,
-          "creationTimestamp" to user.metadata?.creationTimestamp,
-          "lastSignInTimestamp" to user.metadata?.lastSignInTimestamp
-        )
+        "idToken" to tokenResult?.token,
+        "idTokenExpiresAt" to (tokenResult?.claims?.get("exp") as? Number)?.toLong()?.times(1000),
+        "user" to buildUserMap(user)
       )
     )
   }
@@ -589,14 +623,8 @@ class ExpoFirebaseCredManagerModule : Module() {
     isNewUser: Boolean?,
     forceRefreshIdToken: Boolean
   ): Map<String, Any?> {
-    val idToken = try {
-      user.getIdToken(forceRefreshIdToken).await().token
-        ?: throw ExpoFirebaseCredManagerException(
-          "E_ID_TOKEN_UNAVAILABLE",
-          "Firebase ID token is unavailable for the current user."
-        )
-    } catch (e: ExpoFirebaseCredManagerException) {
-      throw e
+    val tokenResult = try {
+      user.getIdToken(forceRefreshIdToken).await()
     } catch (e: Exception) {
       throw ExpoFirebaseCredManagerException(
         "E_ID_TOKEN_UNAVAILABLE",
@@ -605,20 +633,33 @@ class ExpoFirebaseCredManagerModule : Module() {
       )
     }
 
+    val idToken = tokenResult.token
+      ?: throw ExpoFirebaseCredManagerException(
+        "E_ID_TOKEN_UNAVAILABLE",
+        "Firebase ID token is unavailable for the current user."
+      )
+
+    val idTokenExpiresAt = (tokenResult.claims["exp"] as? Number)?.toLong()?.times(1000)
+
     return mapOf(
       "idToken" to idToken,
+      "idTokenExpiresAt" to idTokenExpiresAt,
       "provider" to provider,
       "isNewUser" to isNewUser,
-      "user" to mapOf<String, Any?>(
-        "uid" to user.uid,
-        "email" to user.email,
-        "displayName" to user.displayName,
-        "photoURL" to user.photoUrl?.toString(),
-        "emailVerified" to user.isEmailVerified,
-        "isAnonymous" to user.isAnonymous,
-        "creationTimestamp" to user.metadata?.creationTimestamp,
-        "lastSignInTimestamp" to user.metadata?.lastSignInTimestamp
-      )
+      "user" to buildUserMap(user)
+    )
+  }
+
+  private fun buildUserMap(user: FirebaseUser): Map<String, Any?> {
+    return mapOf(
+      "uid" to user.uid,
+      "email" to user.email,
+      "displayName" to user.displayName,
+      "photoURL" to user.photoUrl?.toString(),
+      "emailVerified" to user.isEmailVerified,
+      "isAnonymous" to user.isAnonymous,
+      "creationTimestamp" to user.metadata?.creationTimestamp,
+      "lastSignInTimestamp" to user.metadata?.lastSignInTimestamp
     )
   }
 

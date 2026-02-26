@@ -2,6 +2,7 @@ export type AuthProvider = 'password' | 'google';
 
 export type AuthResult = {
   idToken: string;
+  idTokenExpiresAt: number | null;
   provider: AuthProvider;
   isNewUser: boolean | null;
   user: {
@@ -18,6 +19,8 @@ export type AuthResult = {
 
 export type AuthStateSession = {
   provider: AuthProvider;
+  idToken: string | null;
+  idTokenExpiresAt: number | null;
   user: AuthResult['user'];
 };
 
@@ -74,6 +77,24 @@ export type CurrentSessionInput = {
   forceRefreshIdToken?: boolean;
 };
 
+export type GetIdTokenInput = {
+  forceRefresh?: boolean;
+};
+
+export type GetIdTokenResult = {
+  idToken: string;
+  expiresAt: number | null;
+};
+
+export type SpacetimeDBTokenInput = {
+  spacetimeDbUrl: string;
+  forceRefresh?: boolean;
+};
+
+export type SpacetimeDBTokenResult = {
+  token: string;
+};
+
 export type PluginOptions = {
   googleServicesFile: string;
   webClientId?: string;
@@ -106,6 +127,7 @@ export const ExpoFirebaseCredManagerErrorCodes = {
   E_AUTH_WEAK_PASSWORD: 'E_AUTH_WEAK_PASSWORD',
   E_AUTH: 'E_AUTH',
   E_ID_TOKEN_UNAVAILABLE: 'E_ID_TOKEN_UNAVAILABLE',
+  E_SPACETIMEDB_TOKEN_EXCHANGE: 'E_SPACETIMEDB_TOKEN_EXCHANGE',
 } as const;
 
 export type ExpoFirebaseCredManagerErrorCode =
@@ -118,6 +140,7 @@ export interface ExpoFirebaseCredManagerError extends Error {
 export type NativeExpoFirebaseCredManagerModule = {
   isAvailable(): Promise<boolean>;
   getCurrentSession(input: CurrentSessionInput): Promise<AuthResult | null>;
+  getIdToken(input: { forceRefresh: boolean }): Promise<GetIdTokenResult | null>;
   signInWithEmailPassword(input: EmailPasswordInput): Promise<AuthResult>;
   signUpWithEmailPassword(input: EmailPasswordInput): Promise<AuthResult>;
   savePasswordCredential(input: SavePasswordCredentialInput): Promise<{ saved: true }>;

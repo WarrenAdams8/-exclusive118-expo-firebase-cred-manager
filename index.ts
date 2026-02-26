@@ -3,6 +3,8 @@ export {
   clearCredentialState,
   deleteCurrentUser,
   getCurrentSession,
+  getIdToken,
+  getSpacetimeDBToken,
   isAvailable,
   savePasswordCredential,
   signInWithEmailPassword,

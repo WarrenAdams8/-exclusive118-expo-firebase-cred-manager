@@ -7,11 +7,15 @@ import type {
   CurrentSessionInput,
   DeleteCurrentUserInput,
   EmailPasswordInput,
+  GetIdTokenInput,
+  GetIdTokenResult,
   GoogleBottomSheetInput,
   GoogleButtonInput,
   NativeExpoFirebaseCredManagerModule,
   SavePasswordCredentialInput,
   SignOutInput,
+  SpacetimeDBTokenInput,
+  SpacetimeDBTokenResult,
 } from './ExpoFirebaseCredManager.types';
 import { ExpoFirebaseCredManagerErrorCodes } from './ExpoFirebaseCredManager.types';
 
@@ -105,6 +109,13 @@ export async function getCurrentSession(input?: CurrentSessionInput): Promise<Au
   });
 }
 
+export async function getIdToken(input?: GetIdTokenInput): Promise<GetIdTokenResult | null> {
+  const native = ensureAvailable();
+  return await native.getIdToken({
+    forceRefresh: input?.forceRefresh ?? false,
+  });
+}
+
 export async function signInWithEmailPassword(input: EmailPasswordInput): Promise<AuthResult> {
   const native = ensureAvailable();
   assertNonEmpty(input.email, 'email');
@@ -153,8 +164,40 @@ export async function clearCredentialState(): Promise<void> {
   await native.clearCredentialState();
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _emitter: any = null;
+
 export function addAuthStateListener(listener: AuthStateChangedListener): AuthStateSubscription {
   const native = ensureAvailable();
-  const emitter = new EventEmitter(native as any);
-  return emitter.addListener(AUTH_STATE_CHANGED_EVENT, listener);
+  if (!_emitter) {
+    _emitter = new EventEmitter(native as any);
+  }
+  return _emitter.addListener(AUTH_STATE_CHANGED_EVENT, listener);
+}
+
+export async function getSpacetimeDBToken(
+  input: SpacetimeDBTokenInput
+): Promise<SpacetimeDBTokenResult> {
+  const session = await getCurrentSession({ forceRefreshIdToken: input.forceRefresh ?? true });
+  if (!session) {
+    throw new CodedError(
+      ExpoFirebaseCredManagerErrorCodes.E_ID_TOKEN_UNAVAILABLE,
+      'No signed-in Firebase user. Sign in before requesting a SpacetimeDB token.'
+    );
+  }
+
+  const url = input.spacetimeDbUrl.replace(/\/+$/, '');
+  const res = await fetch(`${url}/v1/identity/websocket-token`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${session.idToken}` },
+  });
+
+  if (!res.ok) {
+    throw new CodedError(
+      ExpoFirebaseCredManagerErrorCodes.E_SPACETIMEDB_TOKEN_EXCHANGE,
+      `SpacetimeDB token exchange failed: ${res.status} ${res.statusText}`
+    );
+  }
+
+  return (await res.json()) as SpacetimeDBTokenResult;
 }
